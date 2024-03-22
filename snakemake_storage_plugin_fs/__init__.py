@@ -1,4 +1,6 @@
+from dataclasses import dataclass, field
 import os
+import os.path
 from pathlib import Path
 import shutil
 import subprocess
@@ -7,6 +9,8 @@ from typing import Any, Iterable, List, Optional
 import sysrsync
 
 from snakemake_interface_common.exceptions import WorkflowError
+from snakemake_interface_storage_plugins.settings import StorageProviderSettingsBase
+
 from snakemake_interface_storage_plugins.storage_provider import (
     StorageProviderBase,
     ExampleQuery,
@@ -27,6 +31,18 @@ from snakemake_interface_storage_plugins.io import (
 )
 from snakemake_interface_common.utils import lutime
 
+
+@dataclass 
+class StorageProviderSettings(StorageProviderSettingsBase):
+    locally_strip_path: bool = field(
+        default=False,
+        metadata={
+            "help": "In the local copy, uses the filename as identifier instead of the full path",
+            "env_var": True,
+            "required": False,
+        },
+    )
+    
 
 # Required:
 # Implementation of your storage provider
@@ -165,10 +181,12 @@ class StorageObject(
     def local_suffix(self) -> str:
         """Return a unique suffix for the local path, determined from self.query."""
         suffix = self.query
-        if suffix.startswith("/"):
+        if self.provider.settings.locally_strip_path:
+            _, suffix = os.path.split(os.path.abspath(self.query))
+        elif suffix.startswith("/"):
             # convert absolute path to unique relative path
             suffix = f"__abspath__/{suffix[1:]}"
-        return self.query.removeprefix("/")
+        return suffix.removeprefix("/")
 
     def cleanup(self):
         # Nothing to be done here.
